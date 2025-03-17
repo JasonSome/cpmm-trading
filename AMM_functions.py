@@ -199,7 +199,7 @@ def process_trade(trade_func, trade_amt, S, X, Y, filt, eta0, eta1):
         
     return X_new, Y_new, new_price, D, revenue
 
-def simulation(M_, N_, T_, dt_, buy_, sell_, noise_, eta0_, eta1_, S0_, X_, Y_, filtr_bfs, filtr_sfs, seed=42):
+def simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_, S0_, X_, Y_, filtr_bfs, filtr_sfs, seed=42):
     """
     Runs a market simulation for a CPMM with systematic and arbitrage trading.
     
@@ -210,7 +210,6 @@ def simulation(M_, N_, T_, dt_, buy_, sell_, noise_, eta0_, eta1_, S0_, X_, Y_, 
         dt_      : Time step increment.
         buy_     : Constant trade size for systematic buyers.
         sell_    : Constant trade size for systematic sellers.
-        noise_   : Noise trade volume (currently unused, placeholder).
         eta0_    : CEX proportional cost.
         eta1_    : CPMM proportional cost.
         S0_      : An (N+1) x M array representing the CEX price time series.
@@ -351,7 +350,6 @@ def simulation(M_, N_, T_, dt_, buy_, sell_, noise_, eta0_, eta1_, S0_, X_, Y_, 
     avg_sell_fee_rev = np.mean(np.sum(CPMM_sell_revenue, axis=0))
     avg_arb_fee_rev = np.mean(np.sum(CPMM_arb_revenue, axis=0))
     avg_imp_loss = np.mean(Pool_X[-1] + Pool_Y[-1] * S0_[-1] - Pool_X[0] - Pool_Y[0] * S0_[-1])
-    # Hedged portfolio performance
     
     # Return a summary array containing key performance metrics
     return np.array([avg_buy_fee_rev, avg_sell_fee_rev, avg_arb_fee_rev, avg_imp_loss])
