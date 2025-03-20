@@ -4,7 +4,7 @@
 #
 #SBATCH --account=stats           # Replace with your group account name
 #SBATCH --job-name=AMM_sim        # Job name
-#SBATCH -c 12                     # The number of cpu cores to use (the script these cores in the simulation)
+#SBATCH -c 12                     # The number of cpu cores to use (the script recruits these cores in the simulation)
 #SBATCH -t 0-10:00                # Runtime in D-HH:MM
 #SBATCH --mem-per-cpu=5gb         # Memory per CPU core
 
