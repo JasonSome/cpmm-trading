@@ -14,7 +14,7 @@ When prompted, enter your password and press **Enter**.
 
 ## Navigation
 
-When you log in, you'll be placed on a **login node**. Do **not** run any code directly here.
+When you log in, you'll be placed on a **login node**. Do **not** run any code directly here. Instead, we will run code using the sbatch command.
 
 Useful terminal commands:
 
