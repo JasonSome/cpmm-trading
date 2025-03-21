@@ -1,4 +1,4 @@
-# Running the code on Ginsburg
+# Running the Code on Ginsburg
 
 ## Logging In
 
