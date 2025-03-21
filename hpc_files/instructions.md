@@ -105,5 +105,5 @@ sbatch sim.sh
 To check the status of your jobs:
 
 ```bash
-squeue -u <user>
+squeue -u $USER
 ```
