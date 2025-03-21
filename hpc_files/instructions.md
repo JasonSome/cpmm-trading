@@ -43,7 +43,7 @@ nano <filename>
 
 ---
 
-## Moving Files to the HPC Cluster
+## Moving Files to the the Ginsburg HPC Cluster
 
 Run the following command **outside** your Ginsburg session (from your local terminal). Use `motion` for transfers:
 
