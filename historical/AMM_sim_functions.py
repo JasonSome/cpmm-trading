@@ -1,4 +1,5 @@
 import numpy as np
+from EWMA_Vol import EWMA_Vol
 
 def CPMM_Price(X, Y, D):
     """
@@ -302,6 +303,173 @@ def simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_, S0_, X_, Y_, filtr_bf
     for i in range(1, N + 1):
         # Obtain current CEX price for all market indices at time i.
         S = S0_[i]  # S is an array of shape (M,)
+        
+        # Update the hedging portfolio value based on price changes.
+        Hedging_port_val[i] = Hedging_port_val[i-1] + Pool_Y[i-1] * (S - S0_[i-1])
+        
+        # --- Arbitrage Trade (applied to all indices) ---
+        # Calculate arbitrage trade volume based on current price and reserves
+        D_A = Arb_Trade_CPMM(S, X, Y, eta0, eta1)
+        # Determine price at which arbitrage trade is executed
+        P_A = CPMM_Price(X, Y, D_A)
+        # Update reserves after the arbitrage trade
+        X, Y = CPMM_Update(X, Y, D_A)
+        # Update the marginal price post-arbitrage trade
+        S1[i] = CPMM_Marginal_Price(X, Y)
+        # Record updated reserves and arbitrage trade volume
+        Pool_X[i] = X
+        Pool_Y[i] = Y
+        Arb[i] = D_A
+        # Record arbitrage revenue (absolute value is used)
+        CPMM_arb_revenue[i] = np.abs(D_A * P_A * eta1)
+        
+        # Retrieve boolean filters for systematic trades at this time step
+        filtr_bf = filtr_bfs[i]
+        filtr_sf = filtr_sfs[i]
+        
+        # --- Process systematic trades on the "bf" (buy-first) filter ---
+        # First, process BUY trades for indices where filtr_bf is True
+        X_bf, Y_bf, new_price_bf, D_buy_bf, rev_buy_bf = process_trade(
+            Buy_Trade_CPMM, buy, S, X, Y, filtr_bf, eta0, eta1
+        )
+        # Update marginal price and reserves for the filtered indices after buy trade
+        S1[i, filtr_bf] = new_price_bf
+        X[filtr_bf] = X_bf
+        Y[filtr_bf] = Y_bf
+        Pool_X[i, filtr_bf] = X_bf
+        Pool_Y[i, filtr_bf] = Y_bf
+        # Record buy trade volume and revenue
+        CPMM_buy[i, filtr_bf] = D_buy_bf
+        CPMM_buy_revenue[i, filtr_bf] = rev_buy_bf
+
+        # Then, process SELL trades for the same "bf" indices
+        X_bf, Y_bf, new_price_bf, D_sell_bf, rev_sell_bf = process_trade(
+            Sell_Trade_CPMM, sell, S, X, Y, filtr_bf, eta0, eta1
+        )
+        # Update marginal price and reserves for the filtered indices after sell trade
+        S1[i, filtr_bf] = new_price_bf
+        X[filtr_bf] = X_bf
+        Y[filtr_bf] = Y_bf
+        Pool_X[i, filtr_bf] = X_bf
+        Pool_Y[i, filtr_bf] = Y_bf
+        # Record sell trade volume and revenue
+        CPMM_sell[i, filtr_bf] = D_sell_bf
+        CPMM_sell_revenue[i, filtr_bf] = rev_sell_bf
+
+        # --- Process systematic trades on the "sf" (sell-first) filter ---
+        # First, process SELL trades for indices where filtr_sf is True
+        X_sf, Y_sf, new_price_sf, D_sell_sf, rev_sell_sf = process_trade(
+            Sell_Trade_CPMM, sell, S, X, Y, filtr_sf, eta0, eta1
+        )
+        # Update marginal price and reserves for the filtered indices after sell trade
+        S1[i, filtr_sf] = new_price_sf
+        X[filtr_sf] = X_sf
+        Y[filtr_sf] = Y_sf
+        Pool_X[i, filtr_sf] = X_sf
+        Pool_Y[i, filtr_sf] = Y_sf
+        # Record sell trade volume and revenue
+        CPMM_sell[i, filtr_sf] = D_sell_sf
+        CPMM_sell_revenue[i, filtr_sf] = rev_sell_sf
+
+        # Then, process BUY trades for the same "sf" indices
+        X_sf, Y_sf, new_price_sf, D_buy_sf, rev_buy_sf = process_trade(
+            Buy_Trade_CPMM, buy, S, X, Y, filtr_sf, eta0, eta1
+        )
+        # Update marginal price and reserves for the filtered indices after buy trade
+        S1[i, filtr_sf] = new_price_sf
+        X[filtr_sf] = X_sf
+        Y[filtr_sf] = Y_sf
+        Pool_X[i, filtr_sf] = X_sf
+        Pool_Y[i, filtr_sf] = Y_sf
+        # Record buy trade volume and revenue
+        CPMM_buy[i, filtr_sf] = D_buy_sf
+        CPMM_buy_revenue[i, filtr_sf] = rev_buy_sf
+
+    # Return the complete simulation results as a tuple of arrays.
+    return Pool_X, Pool_Y, S0_, S1, CPMM_buy_revenue, CPMM_sell_revenue, CPMM_arb_revenue, Hedging_port_val
+
+
+def adaptive_fee_simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_func, S0_, X_, Y_, filtr_bfs, filtr_sfs, sigma_0):
+    """
+    Runs a market simulation for a CPMM with systematic and arbitrage trading.
+    
+    Parameters:
+        M_          : Number of market indices/instances.
+        N_          : Number of time periods.
+        T_          : Time horizon for the simulation.
+        dt_          : Time step increment.
+        buy_         : Constant trade size for systematic buyers.
+        sell_        : Constant trade size for systematic sellers.
+        eta0_        : CEX proportional cost.
+        eta1_func    : CPMM proportional cost, function of the estimated volatility.
+        S0_         : An (N+1) x M array representing the CEX price time series.
+        X_           : Initial CPMM dollar reserve (scalar or array).
+        Y_           : Initial CPMM asset reserve (scalar or array).
+        filtr_bfs   : Array of boolean filters for systematic trades (buy-first order).
+        filtr_sfs   : Array of boolean filters for systematic trades (sell-first order).
+        sigma_0     : initial volatility.
+    
+    Returns:
+        A tuple of numpy arrays containing the simulation results:
+            - Pool_X          : CPMM dollar reserves over time (shape: (N+1, M)).
+            - Pool_Y          : CPMM asset reserves over time (shape: (N+1, M)).
+            - S0_             : CEX price time series (possibly updated; shape: (N+1, M)).
+            - S1              : CPMM marginal price time series (shape: (N+1, M)).
+            - CPMM_buy_revenue: Revenue from buy trades over time (shape: (N+1, M)).
+            - CPMM_sell_revenue: Revenue from sell trades over time (shape: (N+1, M)).
+            - CPMM_arb_revenue: Revenue from arbitrage trades over time (shape: (N+1, M)).
+            - Hedging_port_val: Hedging portfolio value over time (shape: (N+1, M)).
+    """
+    
+    M = M_  # Number of market indices
+    N = N_  # Number of time periods
+    
+    # Pre-allocate arrays to store time-series data for each metric.
+    Pool_X = np.zeros((N + 1, M))         # CPMM dollar reserves over time.
+    Pool_Y = np.zeros((N + 1, M))         # CPMM asset reserves over time.
+    S1 = np.zeros((N + 1, M))             # CPMM marginal price over time.
+    Arb = np.zeros((N + 1, M))            # Arbitrage trade volumes over time.
+    CPMM_buy = np.zeros((N + 1, M))       # Systematic buy trade volumes over time.
+    CPMM_sell = np.zeros((N + 1, M))      # Systematic sell trade volumes over time.
+    CPMM_buy_revenue = np.zeros((N + 1, M))   # Revenue from buy trades over time.
+    CPMM_sell_revenue = np.zeros((N + 1, M))  # Revenue from sell trades over time.
+    CPMM_arb_revenue = np.zeros((N + 1, M))   # Revenue from arbitrage trades over time.
+    Hedging_port_val = np.zeros((N + 1, M)) # Time series for tracking hedging portfolio value.
+    
+    # Initialize simulation parameters.
+    T = T_       # Total simulation time horizon.
+    dt = dt_     # Time increment per period.
+    buy = buy_   # Trade size for systematic buyers.
+    sell = sell_ # Trade size for systematic sellers.
+    eta0 = eta0_ # CEX proportional cost.
+    eta1 = eta1_func(sigma_0) # CPMM proportional cost.
+
+    # Initialize volatility estimator
+
+    ewma_vol = EWMA_Vol(sigma_0)
+    sigma_hat = sigma_0
+    
+    # Initialize pool reserves using starting values (broadcast across M instances).
+    X = X_ * np.ones(M)
+    Y = Y_ * np.ones(M)
+    
+    # Initialize the marginal price at time 0, store initial reserves,
+    # and set the initial hedging portfolio value based on the initial CEX price.
+    S1[0] = CPMM_Marginal_Price(X, Y)
+    Pool_X[0] = X
+    Pool_Y[0] = Y
+    Hedging_port_val[0] = Pool_X[0] + Pool_Y[0] * S0_[0]
+
+    # Main simulation loop over each time period.
+    for i in range(1, N + 1):
+        # Obtain current CEX price for all market indices at time i.
+        S = S0_[i]  # S is an array of shape (M,)
+
+        # Update estimate of instantaneous volatility and fee
+        rt = S0_[i,0]/S0_[i-1,0] - 1.
+        sigma_hat = ewma_vol.update(rt)
+        eta1 = eta1_func(sigma_hat)
+
         
         # Update the hedging portfolio value based on price changes.
         Hedging_port_val[i] = Hedging_port_val[i-1] + Pool_Y[i-1] * (S - S0_[i-1])
