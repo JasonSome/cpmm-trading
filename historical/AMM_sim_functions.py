@@ -389,7 +389,7 @@ def simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_, S0_, X_, Y_, filtr_bf
     return Pool_X, Pool_Y, S0_, S1, CPMM_buy_revenue, CPMM_sell_revenue, CPMM_arb_revenue, Hedging_port_val
 
 
-def adaptive_fee_simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_func, S0_, X_, Y_, filtr_bfs, filtr_sfs, sigma_0):
+def adaptive_fee_simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_func, S0_, X_, Y_, filtr_bfs, filtr_sfs, sigma_0, lambda_=0.97):
     """
     Runs a market simulation for a CPMM with systematic and arbitrage trading.
     
@@ -443,11 +443,13 @@ def adaptive_fee_simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_func, S0_,
     sell = sell_ # Trade size for systematic sellers.
     eta0 = eta0_ # CEX proportional cost.
     eta1 = eta1_func(sigma_0) # CPMM proportional cost.
+    eta1s = [eta1]
 
     # Initialize volatility estimator
 
-    ewma_vol = EWMA_Vol(sigma_0)
+    ewma_vol = EWMA_Vol(sigma_0, lambda_=lambda_)
     sigma_hat = sigma_0
+    sigma_hats = [sigma_0]
     
     # Initialize pool reserves using starting values (broadcast across M instances).
     X = X_ * np.ones(M)
@@ -467,8 +469,10 @@ def adaptive_fee_simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_func, S0_,
 
         # Update estimate of instantaneous volatility and fee
         rt = S0_[i,0]/S0_[i-1,0] - 1.
-        sigma_hat = ewma_vol.update(rt)
+        sigma_hat = ewma_vol.update(rt/np.sqrt(dt))
+        sigma_hats.append(sigma_hat)
         eta1 = eta1_func(sigma_hat)
+        eta1s.append(eta1)
 
         
         # Update the hedging portfolio value based on price changes.
@@ -553,7 +557,8 @@ def adaptive_fee_simulation(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_func, S0_,
         CPMM_buy_revenue[i, filtr_sf] = rev_buy_sf
 
     # Return the complete simulation results as a tuple of arrays.
-    return Pool_X, Pool_Y, S0_, S1, CPMM_buy_revenue, CPMM_sell_revenue, CPMM_arb_revenue, Hedging_port_val
+    sigma_hats = np.array(sigma_hats)
+    return Pool_X, Pool_Y, S0_, S1, CPMM_buy_revenue, CPMM_sell_revenue, CPMM_arb_revenue, Hedging_port_val, sigma_hats, eta1s
 
 
 def simulation_summary(M_, N_, T_, dt_, buy_, sell_, eta0_, eta1_, S0_, X_, Y_, filtr_bfs, filtr_sfs):
