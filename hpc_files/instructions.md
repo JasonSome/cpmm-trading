@@ -1,4 +1,4 @@
-# Running the Code on Ginsburg
+# Running the Code on Ginsburg (Columbia University Affiliates)
 
 ## Logging In
 
