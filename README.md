@@ -10,7 +10,7 @@ Repository for code that runs and analyzes simulations for CPMM performance.
 
 ## Overview
 
-Simulation code corresponding to the paper ``Optimal Fees for Liquidity Provision in Automated Market Makers" by Steven Campbell, Philippe Bergault, Jason Milionis and Marcel Nutz. The code base can be used to study the key determinants of AMM LP profitability in markets where an AMM operates in parallel with a centralized exchange (CEX), and both arbitrageurs and fundamental traders are afforded the option to interact with either venue.
+Simulation code corresponding to the paper "Optimal Fees for Liquidity Provision in Automated Market Makers" by Steven Campbell, Philippe Bergault, Jason Milionis and Marcel Nutz. The code base can be used to study the key determinants of AMM LP profitability in markets where an AMM operates in parallel with a centralized exchange (CEX), and both arbitrageurs and fundamental traders are afforded the option to interact with either venue.
 
 ## Installation
 
