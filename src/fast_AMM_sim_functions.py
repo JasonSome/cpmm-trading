@@ -203,7 +203,7 @@ def process_sell_trade_single(trade_amt, S, X, Y, eta0, eta1):
     return X_new, Y_new, new_price, D, revenue
 
 # -----------------------------------------------------------------------------
-# Fast Simulation Functions (Vectorized over Markets & Time)
+# Fast Simulation Function
 # -----------------------------------------------------------------------------
 
 @njit
